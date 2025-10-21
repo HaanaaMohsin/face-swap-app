@@ -9,6 +9,7 @@ Welcome to the **Face Swapping App** repository! This application leverages **St
 
 - **Image Face Swap**: Effortlessly swap faces between a source and target image.
 - **Video Face Swap**: Apply face swapping across all frames of a target video using a source face image.
+- **Emotion Preservation (New)**: Optionally preserve target emotions (eyes and mouth cues) when swapping.
 - **High Precision**: Built on **InsightFace** deep learning models for accurate face detection and swapping.
 - **User-Friendly Interface**: Interact with the app through a sleek and intuitive **Streamlit** interface.
 
@@ -19,6 +20,7 @@ Welcome to the **Face Swapping App** repository! This application leverages **St
 1. **Image Face Swapping**:
    - Detects faces in both the source and target images.
    - Replaces the target face with the source face using the `inswapper_128.onnx` model.
+   - Optional: blends back target's eyes and mouth to better preserve emotion.
    
 2. **Video Face Swapping**:
    - Processes each frame of the video to detect and swap faces to match the source face.
@@ -69,8 +71,9 @@ Follow these steps to get started:
 
 1. Open the application using Streamlit or `run.py`.
 2. Upload your **source face image** and the **target image/video**.
-3. Click the process button and let the magic happen!
-4. Once processing is complete, download the swapped images or videos directly from the app.
+3. (Optional) Enable "Preserve target emotion" and adjust mouth/eyes blend strengths.
+4. Click the process button and let the magic happen!
+5. Once processing is complete, download the swapped images or videos directly from the app.
 
 ---
 

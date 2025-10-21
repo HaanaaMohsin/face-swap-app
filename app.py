@@ -6,6 +6,8 @@ import numpy as np
 import insightface
 from insightface.app import FaceAnalysis
 import time
+from typing import Optional
+from emotion_utils import is_smiling, emotion_label, blend_expression_regions
 import requests
 
 app = ''
@@ -26,9 +28,19 @@ def download_model():
     else:
         print(f"{filename} already exists in the directory.")
 
-def swap_faces(target_image, target_face, source_face):
+def swap_faces(target_image, target_face, source_face, *, preserve_emotion: bool = False,
+               emotion_strength_mouth: float = 0.3, emotion_strength_eyes: float = 0.15):
     try:
-        return swapper.get(target_image, target_face, source_face, paste_back=True)
+        swapped = swapper.get(target_image, target_face, source_face, paste_back=True)
+        if preserve_emotion:
+            swapped = blend_expression_regions(
+                swapped_img=swapped,
+                target_img=target_image,
+                face_obj=target_face,
+                mouth_weight=emotion_strength_mouth,
+                eyes_weight=emotion_strength_eyes,
+            )
+        return swapped
     except Exception as e:
         st.error(f"Error during swaping: {e}")
 
@@ -37,6 +49,12 @@ def image_faceswap_app():
     st.title("Face Swapper for Image")
     source_image = st.file_uploader("Upload Source Image", type=["jpg", "jpeg", "png"])
     target_image = st.file_uploader("Upload Target Image", type=["jpg", "jpeg", "png"])
+    preserve_emotion = st.checkbox("Preserve target emotion (eyes+mouth blend)", value=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        emotion_strength_mouth = st.slider("Mouth blend strength", 0.0, 1.0, 0.35, 0.05)
+    with col_b:
+        emotion_strength_eyes = st.slider("Eyes blend strength", 0.0, 1.0, 0.2, 0.05)
     if source_image and target_image:
         with st.spinner("Swapping... Please wait."):
             try:
@@ -54,7 +72,17 @@ def image_faceswap_app():
                 if len(target_faces) == 0:
                     raise ValueError("No faces found in the target image.")
                 target_face = target_faces[0]
-                swapped_image = swap_faces(target_image, target_face, source_face)                
+                swapped_image = swap_faces(
+                    target_image,
+                    target_face,
+                    source_face,
+                    preserve_emotion=preserve_emotion,
+                    emotion_strength_mouth=emotion_strength_mouth,
+                    emotion_strength_eyes=emotion_strength_eyes,
+                )
+                # Simple emotion info using heuristic smile detector on target face
+                smiling = is_smiling(target_image, target_face)
+                st.caption(f"Target emotion detected: {emotion_label(smiling)}")
                 message_placeholder = st.empty()
                 message_placeholder.success("Swapped Successfully!")
                 col1, col2, col3 = st.columns([1, 1, 1])
@@ -68,7 +96,10 @@ def image_faceswap_app():
                 st.error(f"Error during image processing: {e}")
 
 
-def process_video(source_img, video_path, output_video_path):
+def process_video(source_img, video_path, output_video_path,
+                 *, preserve_emotion: bool = False,
+                 emotion_strength_mouth: float = 0.3,
+                 emotion_strength_eyes: float = 0.15):
     try:
         cap = cv2.VideoCapture(video_path)
         fps = cap.get(cv2.CAP_PROP_FPS)
@@ -92,7 +123,14 @@ def process_video(source_img, video_path, output_video_path):
             target_faces = app.get(frame)
             target_faces = sorted(target_faces, key=lambda x: x.bbox[0])
             if len(target_faces) > 0:
-                frame = swap_faces(frame, target_faces[0], source_face)
+                frame = swap_faces(
+                    frame,
+                    target_faces[0],
+                    source_face,
+                    preserve_emotion=preserve_emotion,
+                    emotion_strength_mouth=emotion_strength_mouth,
+                    emotion_strength_eyes=emotion_strength_eyes,
+                )
             out.write(frame)
             elapsed_time = time.time() - start_time
             frames_per_second = frame_count / elapsed_time if elapsed_time > 0 else 0
@@ -114,6 +152,12 @@ def video_faceswap_app():
     if source_image is not None:
         source_image = cv2.imdecode(np.frombuffer(source_image.read(), np.uint8), -1)
     target_video = st.file_uploader("Upload Target Video", type=["mp4"])
+    preserve_emotion = st.checkbox("Preserve target emotion (eyes+mouth blend)", value=True)
+    col_a, col_b = st.columns(2)
+    with col_a:
+        emotion_strength_mouth = st.slider("Mouth blend strength", 0.0, 1.0, 0.35, 0.05)
+    with col_b:
+        emotion_strength_eyes = st.slider("Eyes blend strength", 0.0, 1.0, 0.2, 0.05)
     if target_video is not None:
         temp_video = NamedTemporaryFile(delete=False, suffix=".mp4")
         temp_video.write(target_video.read())
@@ -121,7 +165,14 @@ def video_faceswap_app():
         status_placeholder = st.empty()
         try:
             with st.spinner("Processing... This may take a while."):
-                process_video(source_image, temp_video.name, output_video_path)
+                process_video(
+                    source_image,
+                    temp_video.name,
+                    output_video_path,
+                    preserve_emotion=preserve_emotion,
+                    emotion_strength_mouth=emotion_strength_mouth,
+                    emotion_strength_eyes=emotion_strength_eyes,
+                )
             status_placeholder.success("Processing complete!")
             st.subheader("Your video is ready:")
             st.video(output_video_path)
